@@ -20,6 +20,8 @@ find_package(OpenCV 3 REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(Eigen3)
 
+
+set(EIGEN3_INCLUDE_DIR "/usr/local/include/eigen3")
 include_directories(${catkin_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS}  ${EIGEN3_INCLUDE_DIR})
 
 catkin_package()

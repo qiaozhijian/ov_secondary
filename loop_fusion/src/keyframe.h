@@ -94,6 +94,7 @@ public:
 	Eigen::Vector3d origin_vio_T;		
 	Eigen::Matrix3d origin_vio_R;
 	cv::Mat image;
+	cv::Mat loop_result;
 	cv::Mat thumbnail;
 	vector<cv::Point3f> point_3d; 
 	vector<cv::Point2f> point_2d_uv;

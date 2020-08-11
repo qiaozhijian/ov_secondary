@@ -10,6 +10,7 @@
  *******************************************************/
 
 #include "pose_graph.h"
+#include <iostream>
 
 PoseGraph::PoseGraph()
 {
@@ -334,7 +335,7 @@ KeyFrame* PoseGraph::getKeyFrame(int index)
 
 int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
 {
-    // put image into image_pool; for visualization
+    // put image into image_pool; for visualization 压缩图片
     cv::Mat compressed_image;
     if (DEBUG_IMAGE)
     {
@@ -347,7 +348,9 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
+    //避免检测到最近的帧
     int max_frame_id_allowed = std::max(0, frame_index - RECALL_IGNORE_RECENT_COUNT);
+    //查找出词袋向量最近的三帧, 最近的一帧一直是上一帧，从query中可以发现有这个逻辑
     db.query(keyframe->brief_descriptors, ret, 3, max_frame_id_allowed);
     //printf("[POSEGRAPH]: query time: %f", t_query.toc());
     //cout << "Searching for Image " << frame_index << ". " << ret << endl;
@@ -362,9 +365,9 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     {
         loop_result = compressed_image.clone();
         if (ret.size() > 0)
-            putText(loop_result, "neighbour score:" + to_string(ret[0].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+            putText(loop_result, "cur: " + to_string(frame_index) + ". max score:" + to_string(ret[0].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
     }
-    // visual loop result 
+    // visual loop result
     if (DEBUG_IMAGE)
     {
         for (unsigned int i = 0; i < ret.size(); i++)
@@ -372,7 +375,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
             int tmp_index = ret[i].Id;
             auto it = image_pool.find(tmp_index);
             cv::Mat tmp_image = (it->second).clone();
-            putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+            putText(tmp_image, "index: " + to_string(tmp_index) + ". loop score: " + to_string(ret[i].Score), cv::Point2f(10, 50), CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
             cv::hconcat(loop_result, tmp_image, loop_result);
         }
     }
@@ -402,32 +405,44 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         }
 
     }
-/*
+
     if (DEBUG_IMAGE)
     {
-        cv::imshow("loop_result", loop_result);
-        cv::waitKey(20);
+        //cv::imshow("loop_result", loop_result);
+        //cv::waitKey(20);
+        keyframe->loop_result = loop_result.clone();
     }
-*/
+
     //if (find_loop && frame_index > 50)
     if (frame_index < 50)
         return -1;
 
     // Loop through all, and see if we have one that is a good match!
     std::vector<int> done_ids;
+    //cout<<"new loop. ret.size: "<<ret.size()<<endl;
     while(done_ids.size() < ret.size())
     {
-
+        //cout<<"done_ids: ";
+        //for(auto& it:done_ids)
+        //{
+        //    cout<<it<<" ";
+        //}
+        //cout<<endl;
         // First find the oldest that we have not tried yet
         int min_index = INFINITY;
         bool has_min = false;
         for (unsigned int i = 0; i < ret.size(); i++)
         {
+            //cout<<"find bool: "<<(std::find(done_ids.begin(),done_ids.end(),ret[i].Id)==done_ids.end())
+            //<<" size: "<<done_ids.size()<<" id: "<<ret[i].Id<<" min_index: "<<min_index<<" max_frame_id_allowed: "<<max_frame_id_allowed<<" score: "<<ret[i].Score;
+            // std::find(done_ids.begin(),done_ids.end(),ret[i].Id)==done_ids.end() 判断ret[i].Id是否在done_ids中
             if (ret[i].Id < min_index && ret[i].Id < max_frame_id_allowed && ret[i].Score > MIN_SCORE && std::find(done_ids.begin(),done_ids.end(),ret[i].Id)==done_ids.end())
             {
                 min_index = ret[i].Id;
                 has_min = true;
+                //cout<<" enter";
             }
+            //cout<<std::endl;
         }
 
         // Break out if we have not found a min
@@ -436,7 +451,11 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
 
         // Then try to see if we can loop close with it
         KeyFrame* old_kf = getKeyFrame(min_index);
-        if(keyframe->findConnection(old_kf)) return min_index;
+        if(keyframe->findConnection(old_kf))
+        {
+            cout<<"find loop: "<<min_index<<endl;
+            return min_index;
+        }
         else done_ids.push_back(min_index);
 
     }
@@ -958,19 +977,19 @@ void PoseGraph::savePoseGraph()
         if (DEBUG_IMAGE)
         {
             image_path = POSE_GRAPH_SAVE_PATH + to_string((*it)->index) + "_image.png";
-            imwrite(image_path.c_str(), (*it)->image);
+            imwrite(image_path.c_str(), (*it)->loop_result);
         }
         Quaterniond VIO_tmp_Q{(*it)->vio_R_w_i};
         Quaterniond PG_tmp_Q{(*it)->R_w_i};
         Vector3d VIO_tmp_T = (*it)->vio_T_w_i;
         Vector3d PG_tmp_T = (*it)->T_w_i;
 
-        fprintf (pFile, " %d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %d %f %f %f %f %f %f %f %f %d\n",(*it)->index, (*it)->time_stamp, 
-                                    VIO_tmp_T.x(), VIO_tmp_T.y(), VIO_tmp_T.z(), 
-                                    PG_tmp_T.x(), PG_tmp_T.y(), PG_tmp_T.z(), 
-                                    VIO_tmp_Q.w(), VIO_tmp_Q.x(), VIO_tmp_Q.y(), VIO_tmp_Q.z(), 
-                                    PG_tmp_Q.w(), PG_tmp_Q.x(), PG_tmp_Q.y(), PG_tmp_Q.z(), 
-                                    (*it)->loop_index, 
+        fprintf (pFile, " %d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %d %f %f %f %f %f %f %f %f %d\n",(*it)->index, (*it)->time_stamp,
+                                    VIO_tmp_T.x(), VIO_tmp_T.y(), VIO_tmp_T.z(),
+                                    PG_tmp_T.x(), PG_tmp_T.y(), PG_tmp_T.z(),
+                                    VIO_tmp_Q.w(), VIO_tmp_Q.x(), VIO_tmp_Q.y(), VIO_tmp_Q.z(),
+                                    PG_tmp_Q.w(), PG_tmp_Q.x(), PG_tmp_Q.y(), PG_tmp_Q.z(),
+                                    (*it)->loop_index,
                                     (*it)->loop_info(0), (*it)->loop_info(1), (*it)->loop_info(2), (*it)->loop_info(3),
                                     (*it)->loop_info(4), (*it)->loop_info(5), (*it)->loop_info(6), (*it)->loop_info(7),
                                     (int)(*it)->keypoints.size());
@@ -985,7 +1004,7 @@ void PoseGraph::savePoseGraph()
         for (int i = 0; i < (int)(*it)->keypoints.size(); i++)
         {
             brief_file << (*it)->brief_descriptors[i] << endl;
-            fprintf(keypoints_file, "%f %f %f %f\n", (*it)->keypoints[i].pt.x, (*it)->keypoints[i].pt.y, 
+            fprintf(keypoints_file, "%f %f %f %f\n", (*it)->keypoints[i].pt.x, (*it)->keypoints[i].pt.y,
                                                      (*it)->keypoints_norm[i].pt.x, (*it)->keypoints_norm[i].pt.y);
         }
         brief_file.close();

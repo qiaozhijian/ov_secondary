@@ -433,6 +433,7 @@ void process()
                 vector<cv::Point2f> point_2d_normal;
                 vector<double> point_id;
 
+                //cout<<"point_msg->points: "<<point_msg->points.size()<<endl;
                 for (unsigned int i = 0; i < point_msg->points.size(); i++)
                 {
                     cv::Point3f p_3d;

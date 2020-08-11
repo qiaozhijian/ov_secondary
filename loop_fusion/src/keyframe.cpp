@@ -443,6 +443,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	Eigen::Vector3d relative_t;
 	Quaterniond relative_q;
 	double relative_yaw;
+    cout<<"matched_2d_cur: "<<matched_2d_cur.size()<<".MIN_LOOP_NUM: "<<MIN_LOOP_NUM<<endl;
 	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
 	{
 		status.clear();
@@ -509,14 +510,15 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    #endif
 	}
 
+    printf("[POSEGRAPH]: loop final use num %d %lf--------------- \n", (int)matched_2d_cur.size(), t_match.toc());
 	if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
 	{
 	    relative_t = PnP_R_old.transpose() * (origin_vio_T - PnP_T_old);
 	    relative_q = PnP_R_old.transpose() * origin_vio_R;
 	    relative_yaw = Utility::normalizeAngle(Utility::R2ypr(origin_vio_R).x() - Utility::R2ypr(PnP_R_old).x());
-	    //printf("[POSEGRAPH]: PNP relative\n");
-	    //cout << "pnp relative_t " << relative_t.transpose() << endl;
-	    //cout << "pnp relative_yaw " << relative_yaw << endl;
+	    printf("[POSEGRAPH]: PNP relative\n");
+	    cout << "pnp relative_t " << relative_t.transpose() << endl;
+	    cout << "pnp relative_yaw " << relative_yaw << endl;
 	    if (abs(relative_yaw) < MAX_THETA_DIFF && relative_t.norm() < MAX_POS_DIFF)
 	    {
 
@@ -530,7 +532,6 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	        return true;
 	    }
 	}
-	//printf("[POSEGRAPH]: loop final use num %d %lf--------------- \n", (int)matched_2d_cur.size(), t_match.toc());
 	return false;
 }
 
